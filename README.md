@@ -29,7 +29,7 @@ Each level presents a power network: nodes (generators and consumers) connected 
 
 Solving a level for the first time unlocks the next one and rewards 50 coins. Each redispatch action costs coins deducted from your wallet.
 
-There are **37 levels** of increasing complexity.
+There are **100 levels** of increasing complexity.
 
 ---
 
@@ -101,7 +101,7 @@ congest.io/
 │   ├── level_image_halper.js  # Render overview to PNG (press P)
 │   └── vite.config.js     # Dev server config; proxies /api → :8000
 ├── levels/
-│   └── Level1.json … Level37.json
+│   └── Level1.json … Level100.json
 ├── saves/                 # Auto-saved network snapshots (dev artifact)
 ├── requirements.txt
 └── Untitled.ipynb         # Scratch notebook used for power flow prototyping
