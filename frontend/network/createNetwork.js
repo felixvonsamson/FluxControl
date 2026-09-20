@@ -1,5 +1,14 @@
-import { Container, Graphics, Text, Circle, Rectangle } from 'pixi.js';
+import { Container, Graphics, Text, Circle, Rectangle, ColorMatrixFilter } from 'pixi.js';
 import { config } from '../config.js';
+import { deadIslandNodeIds, faultSites } from './powerFlow.js';
+import { createFaultField } from './faultField.js';
+
+// Opacity of dead islands (lines, labels, bypass rings) so the live grid stands out.
+const DEAD_ALPHA = 0.3;
+
+// Colour saturation of the grid while it is split (1 = normal, 0 = grey). The
+// fault line and the switches stay at full strength.
+const BLACKOUT_SATURATION = 0.15;
 
 // Scale applied to both the main node dot and the b-node ring while a bus-split is active.
 export const SPLIT_SCALE = 0.8;
@@ -11,13 +20,14 @@ export const SPLIT_SCALE = 0.8;
  * @param {object} network
  * @param {object} callbacks  { onToggle, onNodeClick, onResetRedispatch, changeInjection }
  * @param {boolean} overview  simplified rendering for the minimap
- * @returns {{ container, particles, uiElements, overloadedGfx }}
+ * @param {object} view  { reconnecting: Set<string> } switch ids that would heal a split
+ * @returns {{ container, particles, uiElements, overloadedGfx, faultField }}
  *   - container:    add to world / overviewWorld
  *   - particles:    animate in ticker  { gfx, from, to, t, speed, color }
  *   - uiElements:   inverse-scale each tick so they stay pixel-constant at any zoom
  *   - overloadedGfx pulse alpha in ticker when there are overloaded lines
  */
-export function createNetwork(mode, network, callbacks = {}, overview = false) {
+export function createNetwork(mode, network, callbacks = {}, overview = false, view = {}) {
   const container = new Container();
   const particles = [];
   const uiElements = [];
@@ -34,18 +44,55 @@ export function createNetwork(mode, network, callbacks = {}, overview = false) {
   const lineShadowGfx = new Graphics();  // bg-coloured outline under all lines
   const normalLinesGfx = new Graphics();
   const overloadedGfx = new Graphics();  // animated alpha when overloaded
+  const deadLinesGfx = new Graphics();   // lines of dead islands, dimmed
+  deadLinesGfx.alpha = DEAD_ALPHA;
   const particleLayer = new Container();
   const nodeLayer = new Container();
-  const uiLayer = new Container(); // labels, switches, arrows
+  const uiLayer = new Container(); // labels and flow badges
+  const switchLayer = new Container(); // switches: above everything, never desaturated
 
-  container.addChild(bNodeLayer);
-  container.addChild(ringParticleLayer);
-  container.addChild(lineShadowGfx);
-  container.addChild(normalLinesGfx);
-  container.addChild(overloadedGfx);
-  container.addChild(particleLayer);
-  container.addChild(nodeLayer);
-  container.addChild(uiLayer);
+  // The grid layers go in one group so a split can desaturate them together.
+  const gridGroup = new Container();
+  gridGroup.addChild(bNodeLayer);
+  gridGroup.addChild(ringParticleLayer);
+  gridGroup.addChild(lineShadowGfx);
+  gridGroup.addChild(normalLinesGfx);
+  gridGroup.addChild(overloadedGfx);
+  gridGroup.addChild(deadLinesGfx);
+  gridGroup.addChild(particleLayer);
+  gridGroup.addChild(nodeLayer);
+  gridGroup.addChild(uiLayer);
+
+  // ── Split grid: fault line under the grid, blackout on the grid ──
+  // A split (real buses on more than one island) has no defined flows. The
+  // grid greys out, flows are hidden, and the boundary between the islands is
+  // drawn as a pulsing red line. Ported from the iOS app.
+  const sites = overview ? [] : faultSites(network);
+  const blackout = sites.length > 0;
+  let faultField = null;
+  if (blackout) {
+    faultField = createFaultField(sites, config.colors.lineOverload);
+    container.addChild(faultField.mesh);
+
+    const desaturate = new ColorMatrixFilter();
+    const s = BLACKOUT_SATURATION;
+    const [lr, lg, lb] = [0.299, 0.587, 0.114];
+    // Rows are R, G, B, A of a 4x5 colour matrix (last column = offset).
+    desaturate.matrix = [
+      lr * (1 - s) + s, lg * (1 - s),     lb * (1 - s),     0, 0,
+      lr * (1 - s),     lg * (1 - s) + s, lb * (1 - s),     0, 0,
+      lr * (1 - s),     lg * (1 - s),     lb * (1 - s) + s, 0, 0,
+      0,                0,                0,                1, 0,
+    ];
+    gridGroup.filters = [desaturate];
+    particleLayer.visible = false;
+  }
+  container.addChild(gridGroup);
+  container.addChild(switchLayer);
+
+  const reconnecting = view.reconnecting ?? new Set();
+
+  const deadNodes = deadIslandNodeIds(network);
 
   const lineWidth = overview ? config.sizes.lineWidth * 4 : config.sizes.lineWidth;
 
@@ -68,7 +115,8 @@ export function createNetwork(mode, network, callbacks = {}, overview = false) {
     const y2 = to.y - (to.id.includes('b') ? ny * bOffset : 0);
 
     const overloaded = Math.abs(line.flow) > line.limit;
-    const target = overloaded ? overloadedGfx : normalLinesGfx;
+    const dead = deadNodes.has(line.from_node);
+    const target = dead ? deadLinesGfx : overloaded ? overloadedGfx : normalLinesGfx;
     const color = overloaded ? config.colors.lineOverload : config.colors.line;
 
     if (!overview) {
@@ -85,6 +133,8 @@ export function createNetwork(mode, network, callbacks = {}, overview = false) {
     const flowLabel = makeBadge(flowText, flowTextColor, 16);
     flowLabel.x = (from.x + to.x) / 2;
     flowLabel.y = (from.y + to.y) / 2;
+    if (dead) flowLabel.alpha = DEAD_ALPHA;
+    flowLabel.visible = !blackout;  // stale flows would lie
     uiLayer.addChild(flowLabel);
     uiElements.push(flowLabel);
 
@@ -116,7 +166,7 @@ export function createNetwork(mode, network, callbacks = {}, overview = false) {
     if (mode === 'switches') {
       for (const end of ['from', 'to']) {
         const isB = (end === 'from' ? from : to).id.includes('b');
-        const sw = makeSwitch(isB);
+        const sw = makeSwitch(isB, reconnecting.has(line.id + '_' + end));
 
         sw.x = end === 'from' ? from.x + nx * 15 : to.x - nx * 15;
         sw.y = end === 'from' ? from.y + ny * 15 : to.y - ny * 15;
@@ -127,7 +177,7 @@ export function createNetwork(mode, network, callbacks = {}, overview = false) {
         sw.on('pointerover', () => { sw._hoverTarget = 1.3; });
         sw.on('pointerout', () => { sw._hoverTarget = 1; });
 
-        uiLayer.addChild(sw);
+        switchLayer.addChild(sw);
         uiElements.push(sw);
       }
     }
@@ -139,6 +189,7 @@ export function createNetwork(mode, network, callbacks = {}, overview = false) {
     const bCont = makeBNodeContainer(node.x, node.y);
     bNodeLayer.addChild(bCont);
     bNodeContainers[id] = bCont;
+    if (deadNodes.has(id)) bCont.alpha = DEAD_ALPHA;
 
     // Particles that travel around the ring between connection points,
     // each arc at a speed matching the bus current flowing through it.
@@ -201,7 +252,7 @@ export function createNetwork(mode, network, callbacks = {}, overview = false) {
     }
   }
 
-  return { container, particles, uiElements, overloadedGfx, bNodeContainers, mainNodeGraphics };
+  return { container, particles, uiElements, overloadedGfx, bNodeContainers, mainNodeGraphics, faultField };
 }
 
 
@@ -330,10 +381,15 @@ function makeBadge(text, textColor, fontSize) {
   return c;
 }
 
-function makeSwitch(isB) {
+function makeSwitch(isB, reconnecting = false) {
   const g = new Graphics();
   const r = config.sizes.switchRadius;
-  if (isB) {
+  if (reconnecting) {
+    // Toggling this switch would heal the split: solid red, static (a pulse
+    // would inject energy into a grid meant to read as dead).
+    g.circle(0, 0, r).fill({ color: config.colors.lineOverload });
+    g.circle(0, 0, r + 3).stroke({ width: 3, color: 0xffffff, alpha: 0.9 });
+  } else if (isB) {
     // Connected to the bypass node — highlight with the b-node accent color.
     g.circle(0, 0, r).fill({ color: config.colors.switch });
     g.circle(0, 0, r + 3).stroke({ width: 3, color: config.colors.bNode });

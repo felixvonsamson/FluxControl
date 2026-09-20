@@ -1,4 +1,5 @@
 import { createNetwork, makeBNodeContainer, SPLIT_SCALE } from './createNetwork.js';
+import { islandPartition } from './powerFlow.js';
 import { authHeaders, setGuestProgress } from '../auth/auth.js';
 import { starsForRedispatchCost, starsRowHTML, animateStarsRow } from '../ui/stars.js';
 
@@ -63,6 +64,32 @@ function triggerDailySolvedUI(rewardText, stars) {
 }
 
 /**
+ * While the real grid is split: the switches whose toggle would strictly
+ * reduce the number of islands holding a real bus, i.e. the ones that heal
+ * the cut. Ported from the iOS app's `reconnectingSwitchActions`, which
+ * likewise brute-forces every switch through the real toggle logic so the
+ * set can't drift from game behaviour. Empty unless the grid is split.
+ */
+function reconnectingSwitchIds(network) {
+  const target = islandPartition(network).mainIslandCount;
+  if (target <= 1) return new Set();
+
+  const healing = new Set();
+  for (const line of Object.values(network.lines)) {
+    for (const end of ['from', 'to']) {
+      const switchId = `${line.id}_${end}`;
+      // toggleSwitch mutates, and only ever touches nodes and lines.
+      const trial = toggleSwitch(
+        { nodes: structuredClone(network.nodes), lines: structuredClone(network.lines) },
+        switchId,
+      );
+      if (islandPartition(trial).mainIslandCount < target) healing.add(switchId);
+    }
+  }
+  return healing;
+}
+
+/**
  * Rebuild the PixiJS scene from new network data.
  *
  * @param {object} ctx  { world, overviewWorld, state, settings, minimapSize }
@@ -101,7 +128,9 @@ export function updateNetwork(ctx, network, callbacks) {
   }
 
   // ── Build new scene objects ────────────────────────────────────
-  const main = createNetwork(settings.mode, network, callbacks, false);
+  const main = createNetwork(settings.mode, network, callbacks, false, {
+    reconnecting: reconnectingSwitchIds(network),
+  });
   const overview = createNetwork(settings.mode, network, {}, true);
 
   world.addChild(main.container);
@@ -112,6 +141,7 @@ export function updateNetwork(ctx, network, callbacks) {
   state.particles = main.particles;
   state.uiElements = main.uiElements;
   state.overloadedGfx = main.overloadedGfx;
+  state.faultField = main.faultField;
 
   // ── Schedule entrance / exit animations ───────────────────────
   const now = Date.now();

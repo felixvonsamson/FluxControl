@@ -117,6 +117,7 @@ async function loadGuestLevel(levelNum) {
     particles: [],
     uiElements: [],   // labels/switches/arrows — inverse-scaled each tick
     overloadedGfx: null, // pulsing alpha when lines are congested
+    faultField: null, // fault-line shader mesh while the grid is split
     minimapTransform: null, // { scale, offsetX, offsetY } set by updateNetwork
     animations: [],   // active entrance/exit animations { startTime, duration, update, onDone }
     phantoms: [],   // phantom b-node rings currently animating out
@@ -174,6 +175,9 @@ async function loadGuestLevel(levelNum) {
     if (state.overloadedGfx) {
       state.overloadedGfx.alpha = 0.7 + 0.3 * Math.sin(Date.now() * 0.01);
     }
+
+    // Fault line (only present while the grid is split)
+    state.faultField?.update(Date.now() / 1000 % 3600, world.scale.x);
 
     // Keep labels / switches / arrows at constant pixel size
     const inv = 1 / world.scale.x;
@@ -391,15 +395,9 @@ async function loadGuestLevel(levelNum) {
     onToggle(switchID) {
       let network = JSON.parse(sessionStorage.getItem('network'));
       network = toggleSwitch(network, switchID);
+      // A move that splits the grid is allowed: the board shows the fault line
+      // and the switches that would reconnect it instead of refusing the move.
       network = calculatePowerFlow(network);
-      if (network.cost === Infinity) {
-        showErrorToast(
-          '<b>Action blocked:</b> This switch would cut off part of the grid.<br>' +
-          'Every node must remain connected to ensure power can flow through the system.',
-        );
-        network = toggleSwitch(network, switchID);
-        network = calculatePowerFlow(network);
-      }
       updateNetwork(ctx, network, callbacks);
     },
 
@@ -623,14 +621,6 @@ function syncRedispatchUI(network) {
   balEl.textContent = unbalance !== 0 ? `Power unbalance: ${unbalance}` : '';
   valBtn.disabled = unbalance !== 0;
   valBtn.textContent = `${cost.toFixed(0)}€`;
-}
-
-function showErrorToast(html) {
-  const toast = document.createElement('div');
-  toast.className = 'error-toast';
-  toast.innerHTML = html;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
 }
 
 window._applyTheme = function (theme) {
