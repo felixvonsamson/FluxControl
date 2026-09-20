@@ -14,6 +14,12 @@ export const DIFFICULTY_COLORS = {
 
 // ── Solved UI helpers ───────────────────────────────────────────────
 
+// Yellow-orange lightbulb shown next to the level hint text.
+const LIGHTBULB_ICON = `<svg class="w-6 h-6 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M9 18h6M10 21h4" />
+  <path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z" fill="currentColor" fill-opacity="0.25" />
+</svg>`;
+
 function hideSolvedUI() {
   const overlay = document.getElementById('solvedOverlay');
   overlay.style.display = 'none';
@@ -248,8 +254,9 @@ export function updateNetwork(ctx, network, callbacks) {
 
   const tutEl = document.getElementById('tutorialHelp');
   if (network.tutorial_info) {
-    tutEl.style.display = 'block';
-    tutEl.textContent = network.tutorial_info;
+    tutEl.style.display = 'flex';
+    tutEl.innerHTML = `${LIGHTBULB_ICON}<span class="text-center"></span>`;
+    tutEl.lastElementChild.textContent = network.tutorial_info;
   } else {
     tutEl.style.display = 'none';
     tutEl.textContent = '';
