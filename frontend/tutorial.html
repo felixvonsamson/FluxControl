@@ -14,6 +14,15 @@
       60%  { box-shadow: 0 0 0 10px rgba(52, 211, 153, 0);   }
       100% { box-shadow: 0 0 0 0   rgba(52, 211, 153, 0);   }
     }
+    /* Colored terms in the hint text; --tut-* vars are set from config.colors in tutorial.js */
+    .tut-prod { color: var(--tut-prod); }
+    .tut-cons { color: var(--tut-cons); }
+    .tut-switch { color: var(--tut-switch); }
+    .tut-congested { color: var(--tut-congested); }
+    .tut-redispatch { color: #3b82f6; }  /* matches the Redispatch button (bg-blue-600) */
+    html[data-theme="light"] .tut-redispatch { color: #2563eb; }
+    .tut-validate { color: #10b981; }  /* matches the validate button (bg-emerald-600) */
+    html[data-theme="light"] .tut-validate { color: #059669; }
     .tut-pulse { animation: tutPulse 1.4s ease-out infinite; }
   </style>
 </head>

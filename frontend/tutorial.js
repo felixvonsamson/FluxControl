@@ -32,18 +32,18 @@ const TUTORIAL_NETWORK_BASE = {
 
 // ── Tutorial steps ────────────────────────────────────────────────────
 const STEPS = [
-  { text: 'Welcome! This is a power network. <b>Blue nodes</b> produce electricity, <b>orange nodes</b> consume it. Power flows through the lines.' },
-  { text: 'The maximal capacity of all lines is 50. Some lines are <b>congested</b> (shown in red) because they carry more power than their capacity allows. Your goal: redistribute the power so no line exceeds its capacity.' },
-  { text: 'You can reroute power by toggling <b>switches</b>: the small circles at each end of each line. Try switching this one.' },
+  { text: 'Welcome! This is a power network. <b class="tut-prod">blue nodes</b> produce electricity, <b class="tut-cons">orange nodes</b> consume it. Power flows through the lines.' },
+  { text: 'The maximal capacity of all lines is 50. Some lines are <b class="tut-congested">congested</b> because they carry more power than their capacity allows. Your goal: redistribute the power so no line exceeds its capacity.' },
+  { text: 'You can reroute power by toggling <b class="tut-switch">switches</b>: the small circles at each end of each line. Try switching this one.' },
   { text: 'Good! When you toggle a switch, that end of the line is moved from the <b>main node</b> to the <b>bypass node</b> (the ring around the main node). Note that electricity is always injected/drawn from the main node, not the bypass node.' },
-  { text: 'The main and bypass nodes are <b>completely independent</b> of each other. Power flowing through one does not affect the other. The animation below illustrates this separation. In this case nothing else is connected to the bypass node so you basically disconnected this line.' },
+  { text: 'The main and bypass nodes are <b>completely independent</b> of each other. Power flowing through one does not affect the other. The animation above illustrates this separation. In this case nothing else is connected to the bypass node so you basically disconnected this line.' },
   { text: 'Try switching another line on the bypass node.' },
   { text: 'Great! Now all lines are within their capacity. You just solved your first congestion problem!' },
   { text: 'Here is another animation. Both lines are now connected to the bypass node, which acts as a completely separate node. This is called a <b>topological measure</b>.' },
   { text: 'To reset all switches of a node back to the main bus, <b>click on the node itself</b>. Try it.' },
-  { text: "There is always a solution using only topological measures. However, if you can't find it, use <b>Redispatch</b>. Click the button on the bottom right to enter redispatch mode." },
+  { text: "There is always a solution using only topological measures. However, if you can't find it, use <b class=\"tut-redispatch\">redispatch</b>. Click the button on the bottom right to enter redispatch mode." },
   { text: '<b>Select two nodes</b>, then drag one up or down to shift power around. Redispatch conserves the net power on the grid and it costs money.' },
-  { text: 'Perfect! Click the <b>price tag button</b> to validate and pay for the redispatch.' },
+  { text: 'Perfect! Click the <b class="tut-validate">price tag button</b> to validate and pay for the redispatch.' },
   { text: "You're all set! Click <b>Start Playing</b> to tackle real levels.", final: true },
 ];
 
@@ -217,7 +217,15 @@ function renderStep() {
                       text-white transition-colors">← Back</button>`
     : '';
 
+  const hex = (n) => '#' + n.toString(16).padStart(6, '0');
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty('--tut-prod', hex(config.colors.nodeProd));
+  rootStyle.setProperty('--tut-cons', hex(config.colors.nodeCons));
+  rootStyle.setProperty('--tut-switch', hex(config.colors.switchActive));
+  rootStyle.setProperty('--tut-congested', hex(config.colors.lineOverload));
+
   helpEl.innerHTML =
+    `<p class="mb-2 text-xs font-semibold tracking-wide text-gray-400 select-none">${step + 1}/${STEPS.length}</p>` +
     `<p class="mb-3 leading-relaxed">${s.text}</p>` +
     `<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">` +
     backBtn + nextBtn +
