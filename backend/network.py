@@ -447,6 +447,93 @@ def calculate_power_flow(network):
     return network
 
 
+def island_partition(network: NetworkState) -> tuple[dict[str, int], int]:
+    """
+    Connected components of the network, with base buses classified apart from
+    bypass ("b") buses.
+
+    Returns (island_of_node, main_island_count): every bus mapped to an island
+    index (numbered by the smallest node id in it, so deterministic), and the
+    number of distinct islands holding at least one base (non-"b") bus.
+    """
+    adjacency: dict[str, list[str]] = {node_id: [] for node_id in network.nodes}
+    for line in network.lines.values():
+        adjacency[line.from_node].append(line.to_node)
+        adjacency[line.to_node].append(line.from_node)
+
+    island_of_node: dict[str, int] = {}
+    main_islands: set[int] = set()
+    island_count = 0
+    for seed in sorted(network.nodes):
+        if seed in island_of_node:
+            continue
+        island = island_count
+        island_count += 1
+        island_of_node[seed] = island
+        queue = deque([seed])
+        while queue:
+            node_id = queue.popleft()
+            if not node_id.endswith("b"):
+                main_islands.add(island)
+            for neighbor in adjacency[node_id]:
+                if neighbor not in island_of_node:
+                    island_of_node[neighbor] = island
+                    queue.append(neighbor)
+    return island_of_node, len(main_islands)
+
+
+def resolve_dead_islands(network: NetworkState) -> NetworkState | None:
+    """
+    Flows for a grid whose only detached islands are dead bypass islands.
+
+    A line opened at both ends floats on two phantom "b" buses. Bypass buses
+    carry no injection, so such an island genuinely carries zero flow and the
+    real grid is unaffected — a legal state. The island holding the base buses
+    is solved normally, every dead line is pinned at zero flow, and `cost`
+    comes from the live island alone.
+
+    Returns None when the base buses themselves span more than one island: no
+    flows are well defined then, and the submission must not be trusted.
+
+    Mirrors `resolvingDeadIslands()` in the iOS app's FluxEngine. It sits above
+    `calculate_power_flow`, which keeps returning NaN cost for any
+    disconnection — the solver relies on that to skip disconnected states.
+    Does not mutate `network`.
+    """
+    validate_network(network)
+    if is_connected(network):
+        return calculate_power_flow(deepcopy(network))
+
+    island_of_node, main_island_count = island_partition(network)
+    if main_island_count != 1:
+        return None
+
+    main_node = next(node_id for node_id in network.nodes if not node_id.endswith("b"))
+    main_island = island_of_node[main_node]
+
+    # A line's endpoints always share an island, so filtering on from_node
+    # keeps exactly the live island's lines.
+    live = deepcopy(network)
+    live.nodes = {
+        node_id: node
+        for node_id, node in network.nodes.items()
+        if island_of_node[node_id] == main_island
+    }
+    live.lines = {
+        line_id: line
+        for line_id, line in network.lines.items()
+        if island_of_node[line.from_node] == main_island
+    }
+    live = calculate_power_flow(live)
+
+    resolved = deepcopy(network)
+    for line_id, line in resolved.lines.items():
+        live_line = live.lines.get(line_id)
+        line.flow = live_line.flow if live_line is not None else 0.0
+    resolved.cost = live.cost
+    return resolved
+
+
 def update_network(network, req: TopologyChangeRequest):
     """
     Switch the connection to a second node placed at the same location.

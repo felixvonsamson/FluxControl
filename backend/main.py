@@ -10,7 +10,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from .network import (
     generate_network,
-    calculate_power_flow,
+    resolve_dead_islands,
     update_network,
     solve_network,
     load_level,
@@ -224,7 +224,18 @@ def check_solution(
     if original_nodes != submitted_nodes or original_lines != submitted_lines:
         raise HTTPException(status_code=400, detail="Submitted network does not match original level")
 
-    network = calculate_power_flow(network)
+    # A main split (base buses on more than one island) has no well-defined
+    # flows, so it can never be a solution. Never fall back to client flows.
+    resolved = resolve_dead_islands(network)
+    if resolved is None:
+        return rewardResponse(
+            solved=False,
+            player=player.package_data(),
+            reward=0,
+            redispatch_cost=calculate_redispatch_cost(network),
+            stars=None,
+        )
+    network = resolved
 
     all_lines_within_capacity = all(
         abs(line.flow) <= line.limit for line in network.lines.values()
@@ -353,7 +364,16 @@ def check_daily_solution(
     if original_nodes != submitted_nodes or set(original.lines.keys()) != set(submitted_reset.lines.keys()):
         raise HTTPException(status_code=400, detail="Submitted network does not match today's daily problem")
 
-    network = calculate_power_flow(network)
+    resolved = resolve_dead_islands(network)
+    if resolved is None:
+        return rewardResponse(
+            solved=False,
+            player=player.package_data(),
+            reward=0,
+            redispatch_cost=calculate_redispatch_cost(network),
+            stars=None,
+        )
+    network = resolved
     all_lines_ok = all(abs(line.flow) <= line.limit for line in network.lines.values())
 
     today = datetime.date.today().isoformat()
