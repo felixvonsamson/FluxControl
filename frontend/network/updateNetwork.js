@@ -2,6 +2,7 @@ import { createNetwork, makeBNodeContainer, SPLIT_SCALE } from './createNetwork.
 import { islandPartition } from './powerFlow.js';
 import { authHeaders, setGuestProgress } from '../auth/auth.js';
 import { starsForRedispatchCost, starsRowHTML, animateStarsRow } from '../ui/stars.js';
+import { takePendingSwitches, restorePendingSwitches } from '../switchStats.js';
 import { calcRedispatchCost, redispatchCharge, isFirstSolve, canAffordRedispatch, SOLVE_REWARD } from '../economy.js';
 
 export const DIFFICULTY_COLORS = {
@@ -302,12 +303,21 @@ function checkDailySolution(network) {
 }
 
 function checkSolution(network) {
+  // Unreported switch flips ride along so the solving flip is counted too.
+  const switchDelta = takePendingSwitches(network.level);
   fetch('/api/check_solution', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ network_data: network }),
+    body: JSON.stringify({ network_data: network, switch_delta: switchDelta }),
   })
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) restorePendingSwitches(network.level, switchDelta);
+      return r.json();
+    })
+    .catch(err => {
+      restorePendingSwitches(network.level, switchDelta);
+      throw err;
+    })
     .then(data => {
       if (!data.solved) {
         hideSolvedUI();

@@ -8,6 +8,7 @@ import { renderOverviewToImage } from './level_image_halper.js';
 import { redispatchCharge, canAffordRedispatch, isFirstSolve } from './economy.js';
 import { applyTransfer, nextPair } from './network/redispatch.js';
 import { initRedispatchScale } from './ui/redispatchScale.js';
+import { countSwitches } from './switchStats.js';
 
 const MINIMAP_SIZE = 350;
 
@@ -398,6 +399,7 @@ async function loadGuestLevel(levelNum) {
     onToggle(switchID) {
       let network = JSON.parse(sessionStorage.getItem('network'));
       network = toggleSwitch(network, switchID);
+      countSwitches(network, 1);
       // A move that splits the grid is allowed: the board shows the fault line
       // and the switches that would reconnect it instead of refusing the move.
       network = calculatePowerFlow(network);
@@ -407,10 +409,12 @@ async function loadGuestLevel(levelNum) {
     onNodeClick(nodeId) {
       // Reset all bus-split switches on this node back to the main bus
       let network = JSON.parse(sessionStorage.getItem('network'));
+      let flips = 0;
       for (const line of Object.values(network.lines)) {
-        if (line.from_node === nodeId + 'b') network = toggleSwitch(network, line.id + '_from');
-        if (line.to_node === nodeId + 'b') network = toggleSwitch(network, line.id + '_to');
+        if (line.from_node === nodeId + 'b') { network = toggleSwitch(network, line.id + '_from'); flips++; }
+        if (line.to_node === nodeId + 'b') { network = toggleSwitch(network, line.id + '_to'); flips++; }
       }
+      countSwitches(network, flips);
       network = calculatePowerFlow(network);
       updateNetwork(ctx, network, callbacks);
     },

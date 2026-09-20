@@ -1,6 +1,8 @@
+from datetime import datetime
 from typing import Optional
 import json
 
+from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
@@ -53,3 +55,18 @@ class Player(Base):
             "level_stars": self.get_level_stars(),
             "total_stars": self.total_stars(),
         }
+
+
+class LevelStats(Base):
+    """Difficulty telemetry: switches a player flipped on a career level,
+    accumulated across visits until the level is solved without redispatch.
+    Once solved_at is set the row is frozen."""
+    __tablename__ = "level_stats"
+    __table_args__ = (UniqueConstraint("player_id", "level"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), index=True)
+    level: Mapped[int] = mapped_column()
+    switch_count: Mapped[int] = mapped_column(default=0)
+    solved_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)

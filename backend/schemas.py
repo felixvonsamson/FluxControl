@@ -46,6 +46,12 @@ class LoadLevelRequest(BaseModel):
 
 class NetworkStateRequest(BaseModel):
     network_data: dict
+    # Switch flips not yet reported via /record_switches (see level_stats.py)
+    switch_delta: int = 0
+
+class SwitchCountRequest(BaseModel):
+    level: int
+    count: int
 
 class SwitchNodeRequest(BaseModel):
     network_data: dict
