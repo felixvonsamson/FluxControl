@@ -5,6 +5,7 @@ import { calculatePowerFlow } from './network/powerFlow.js';
 import { createNetwork } from './network/createNetwork.js';
 import { applyTransfer, nextPair } from './network/redispatch.js';
 import { initRedispatchScale } from './ui/redispatchScale.js';
+import { stashGameState } from './tutorialSession.js';
 
 // ── Tutorial network ──────────────────────────────────────────────────
 // Line limits will be tuned later; for now all 50 (same as game default).
@@ -103,15 +104,9 @@ let tutHighlightGfx = null;  // overlay for pulsing circles (on app.stage)
 let tutAnimType = null;      // 'bypass1' | 'bypass2' | null
 let tutAnimStartTime = 0;    // timestamp when current animation loop began
 
-// Saved before tutorial starts; restored on exit so the game resumes correctly.
-let _savedPlayer = null;
-let _savedNetwork = null;
-
+// The real game state is restored by main.js on arrival, so a late tutorial write
+// before the page unloads can't clobber it.
 function exitTutorial() {
-  if (_savedPlayer !== null) sessionStorage.setItem('player', _savedPlayer);
-  else sessionStorage.removeItem('player');
-  if (_savedNetwork !== null) sessionStorage.setItem('network', _savedNetwork);
-  else sessionStorage.removeItem('network');
   window.location.href = '/';
 }
 
@@ -600,14 +595,13 @@ function updateAndRender() {
   });
 
   // Stub for updateNetwork.js solved overlay
-  document.getElementById('nextLevelBtn')?.addEventListener('click', () => { window.location.href = '/'; });
+  document.getElementById('nextLevelBtn')?.addEventListener('click', exitTutorial);
   document.getElementById('viewSolutionBtn')?.addEventListener('click', () => { });
-  document.getElementById('nextLevelBtnPill')?.addEventListener('click', () => { window.location.href = '/'; });
+  document.getElementById('nextLevelBtnPill')?.addEventListener('click', exitTutorial);
 
   // ── Initial load ─────────────────────────────────────────────
-  // Save real state so we can restore it on exit (avoids polluting game state).
-  _savedPlayer = sessionStorage.getItem('player');
-  _savedNetwork = sessionStorage.getItem('network');
+  // Stash the real game state; main.js restores it however the tutorial is left.
+  stashGameState();
   // Use a throw-away guest player for the duration; _tutorialMode blocks money logic.
   sessionStorage.setItem('player', JSON.stringify({
     is_guest: true, current_level: 0, unlocked_levels: 999, money: 0,

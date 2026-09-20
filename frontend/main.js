@@ -8,6 +8,7 @@ import { renderOverviewToImage } from './level_image_halper.js';
 import { redispatchCharge, canAffordRedispatch, isFirstSolve } from './economy.js';
 import { applyTransfer, nextPair } from './network/redispatch.js';
 import { initRedispatchScale } from './ui/redispatchScale.js';
+import { restoreGameState } from './tutorialSession.js';
 import { countSwitches } from './switchStats.js';
 
 const MINIMAP_SIZE = 350;
@@ -512,6 +513,9 @@ async function loadGuestLevel(levelNum) {
   });
 
   // ── Initial level load ───────────────────────────────────────
+  // Coming back from a tutorial that wasn't closed with its own exit button.
+  restoreGameState();
+
   const loggedIn = await ensureLoggedIn();
   if (!loggedIn) return;
 
