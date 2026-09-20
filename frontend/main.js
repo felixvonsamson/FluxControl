@@ -5,6 +5,9 @@ import { calculatePowerFlow } from './network/powerFlow.js';
 import { makeBNodeContainer, SPLIT_SCALE } from './network/createNetwork.js';
 import { ensureLoggedIn, authHeaders, isGuest, setGuestProgress } from './auth/auth.js';
 import { renderOverviewToImage } from './level_image_halper.js';
+import { redispatchCharge, canAffordRedispatch, isFirstSolve } from './economy.js';
+import { applyTransfer, nextPair } from './network/redispatch.js';
+import { initRedispatchScale } from './ui/redispatchScale.js';
 
 const MINIMAP_SIZE = 350;
 
@@ -123,7 +126,7 @@ async function loadGuestLevel(levelNum) {
     phantoms: [],   // phantom b-node rings currently animating out
     prevBNodes: {},   // { id: { x, y } } — b-nodes from last updateNetwork call
   };
-  const settings = { mode: 'switches' };
+  const settings = { mode: 'switches', pair: [] };
 
   ctx = { world, overviewWorld, state, settings, minimapSize: MINIMAP_SIZE };
 
@@ -412,33 +415,26 @@ async function loadGuestLevel(levelNum) {
       updateNetwork(ctx, network, callbacks);
     },
 
-    onResetRedispatch(nodeId) {
-      let network = JSON.parse(sessionStorage.getItem('network'));
-      const node = network.nodes[nodeId];
-      const adj = network.redispatch.adjustments[nodeId] || 0;
-      node.injection -= adj;
-      network.redispatch.cost -= adj * (adj > 0 ? node.cost_increase : -node.cost_decrease);
-      network.redispatch.unbalance -= adj;
-      delete network.redispatch.adjustments[nodeId];
-      syncRedispatchUI(network);
-      network = calculatePowerFlow(network);
-      updateNetwork(ctx, network, callbacks);
-    },
-
-    changeInjection(nodeId, direction) {
-      let network = JSON.parse(sessionStorage.getItem('network'));
-      const delta = direction === 'up' ? 1 : -1;
-      const node = network.nodes[nodeId];
-      node.injection += delta;
-      network.redispatch.adjustments[nodeId] =
-        (network.redispatch.adjustments[nodeId] || 0) + delta;
-      network.redispatch.cost = calcRedispatchCost(network);
-      network.redispatch.unbalance += delta;
-      syncRedispatchUI(network);
-      network = calculatePowerFlow(network);
-      updateNetwork(ctx, network, callbacks);
+    onRedispatchSelect(nodeId) {
+      settings.pair = nextPair(settings.pair, nodeId);
+      updateNetwork(ctx, JSON.parse(sessionStorage.getItem('network')), callbacks);
     },
   };
+
+  ctx.redispatchScale = initRedispatchScale(document.getElementById('redispatchScale'), {
+    onTransfer(raisingId, loweringId, mw) {
+      let network = JSON.parse(sessionStorage.getItem('network'));
+      applyTransfer(network, raisingId, loweringId, mw);
+      syncRedispatchUI(network);
+      network = calculatePowerFlow(network);
+      updateNetwork(ctx, network, callbacks);
+    },
+    onClear() {
+      settings.pair = [];
+      updateNetwork(ctx, JSON.parse(sessionStorage.getItem('network')), callbacks);
+    },
+    isFree: () => !isFirstSolve(JSON.parse(sessionStorage.getItem('player')), window._dailyMode),
+  });
 
   // ── Button wiring ────────────────────────────────────────────
   document.getElementById('nextLevelBtn').addEventListener('click', () => {
@@ -479,6 +475,7 @@ async function loadGuestLevel(levelNum) {
   document.getElementById('useRedispatch').addEventListener('click', () => {
     sessionStorage.setItem('network_before_redispatch', sessionStorage.getItem('network'));
     settings.mode = 'redispatch';
+    settings.pair = [];
     document.getElementById('useRedispatch').style.display = 'none';
     document.getElementById('redispatchCost').style.display = 'none';
     document.getElementById('validateRedispatch').style.display = 'block';
@@ -488,6 +485,7 @@ async function loadGuestLevel(levelNum) {
 
   document.getElementById('cancelRedispatch').addEventListener('click', () => {
     settings.mode = 'switches';
+    settings.pair = [];
     sessionStorage.setItem('network', sessionStorage.getItem('network_before_redispatch'));
     document.getElementById('useRedispatch').style.display = 'block';
     document.getElementById('validateRedispatch').style.display = 'none';
@@ -501,6 +499,7 @@ async function loadGuestLevel(levelNum) {
 
   document.getElementById('validateRedispatch').addEventListener('click', () => {
     settings.mode = 'switches';
+    settings.pair = [];
     document.getElementById('useRedispatch').style.display = 'block';
     document.getElementById('validateRedispatch').style.display = 'none';
     document.getElementById('cancelRedispatch').style.display = 'none';
@@ -603,24 +602,18 @@ function next_level() {
     });
 }
 
-function calcRedispatchCost(network) {
-  let total = 0;
-  for (const [id, adj] of Object.entries(network.redispatch.adjustments)) {
-    const node = network.nodes[id];
-    total += adj > 0 ? adj * node.cost_increase : -adj * node.cost_decrease;
-  }
-  return total;
-}
-
 function syncRedispatchUI(network) {
   const unbalance = network.redispatch.unbalance;
   const cost = network.redispatch.cost;
+  const player = JSON.parse(sessionStorage.getItem('player'));
+  const affordable = canAffordRedispatch(player, cost, window._dailyMode);
+  const charge = redispatchCharge(player, cost, window._dailyMode);
   const balEl = document.getElementById('redispatchUnbalance');
   const valBtn = document.getElementById('validateRedispatch');
   balEl.style.display = unbalance !== 0 ? 'block' : 'none';
   balEl.textContent = unbalance !== 0 ? `Power unbalance: ${unbalance}` : '';
-  valBtn.disabled = unbalance !== 0;
-  valBtn.textContent = `${cost.toFixed(0)}€`;
+  valBtn.disabled = unbalance !== 0 || !affordable;
+  valBtn.textContent = affordable ? `${charge}€` : `${charge}€ — not enough coins`;
 }
 
 window._applyTheme = function (theme) {

@@ -27,7 +27,7 @@ Each level presents a power network: nodes (generators and consumers) connected 
 1. **Switches** — reconnect a line's endpoint to a "bus split" copy of the node, rerouting power through a different path in the network. Free to use.
 2. **Redispatch** — increase or decrease the power injection at individual nodes. Costs in-game money; the network must remain balanced (sum of injections = 0) before you can confirm.
 
-Solving a level for the first time unlocks the next one and rewards 50 coins. Each redispatch action costs coins deducted from your wallet.
+Solving a level for the first time unlocks the next one and rewards 50 coins. Redispatch costs 30 € per MW to raise production and 10 € per MW to reduce it, paid on the first solve of a level only (re-solving is free), and payable only from the coins you already have (the level reward can't be spent on it).
 
 There are **100 levels** of increasing complexity.
 
@@ -166,9 +166,7 @@ Power flow is computed **both client-side** (for instant visual feedback on swit
   "id": "0",
   "injection": 31.0,     // positive = generator, negative = consumer
   "x": 150.0,            // 2D position for rendering
-  "y": 250.0,
-  "cost_increase": 54,   // coins per unit to increase injection
-  "cost_decrease": 18    // coins per unit to decrease injection
+  "y": 250.0
 }
 ```
 
@@ -223,8 +221,7 @@ Levels are JSON files in `/levels/Level{n}.json`:
 ```json
 {
   "nodes": {
-    "0": { "id": "0", "injection": 31.0, "x": 150.0, "y": 250.0,
-           "cost_increase": 54, "cost_decrease": 18 }
+    "0": { "id": "0", "injection": 31.0, "x": 150.0, "y": 250.0 }
   },
   "lines": {
     "L0-1": { "id": "L0-1", "from_node": "0", "to_node": "1",
@@ -298,11 +295,11 @@ Splitting a node models opening a **busbar coupler** in a real substation. Node 
 Adjusting a node's injection models **re-dispatching** generation or demand. The total injection must remain zero (energy balance). The cost is:
 
 ```
-cost = Σ |Δp_i| × (cost_increase_i  if Δp_i > 0
-                    cost_decrease_i  if Δp_i < 0)
+cost = Σ |Δp_i| × (30 €/MW  if Δp_i > 0     # increase production
+                    10 €/MW  if Δp_i < 0)    # reduce production
 ```
 
-This is deducted from the player's money when the redispatch is confirmed.
+The prices are uniform across nodes and levels. The cost is deducted from the player's money on the **first** solve of a level (or of the day's daily problem); redispatch on an already solved level is free. A solve whose redispatch costs more than the player's current balance is rejected.
 
 ### Auto-solver
 

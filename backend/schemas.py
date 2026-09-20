@@ -9,8 +9,6 @@ class Node(BaseModel):
     injection: float = 0.0
     x: float = 0.0
     y: float = 0.0
-    cost_increase: int = 0
-    cost_decrease: int = 0
 
 
 class Line(BaseModel):
@@ -115,7 +113,7 @@ class rewardResponse(BaseModel):
     solved: bool
     player: dict
     reward: int
-    redispatch_cost: float = 0.0
+    redispatch_cost: int = 0
     stars: Optional[int] = None
 
 class DailyProblemResponse(BaseModel):

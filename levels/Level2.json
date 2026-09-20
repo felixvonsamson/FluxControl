@@ -4,41 +4,31 @@
             "id": "0",
             "injection": 100.0,
             "x": 100.0,
-            "y": 250.0,
-            "cost_increase": 20,
-            "cost_decrease": -16
+            "y": 250.0
         },
         "1": {
             "id": "1",
             "injection": 50.0,
             "x": 250.0,
-            "y": 100.0,
-            "cost_increase": 36,
-            "cost_decrease": 10
+            "y": 100.0
         },
         "2": {
             "id": "2",
             "injection": -110,
             "x": 400.0,
-            "y": 250.0,
-            "cost_increase": 54,
-            "cost_decrease": -20
+            "y": 250.0
         },
         "3": {
             "id": "3",
             "injection": 50.0,
             "x": 250.0,
-            "y": 400.0,
-            "cost_increase": 58,
-            "cost_decrease": -20
+            "y": 400.0
         },
         "4": {
             "id": "4",
             "injection": -90.0,
             "x": 250.0,
-            "y": 250.0,
-            "cost_increase": 70,
-            "cost_decrease": 8
+            "y": 250.0
         }
     },
     "lines": {

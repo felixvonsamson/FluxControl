@@ -2,6 +2,7 @@ import { createNetwork, makeBNodeContainer, SPLIT_SCALE } from './createNetwork.
 import { islandPartition } from './powerFlow.js';
 import { authHeaders, setGuestProgress } from '../auth/auth.js';
 import { starsForRedispatchCost, starsRowHTML, animateStarsRow } from '../ui/stars.js';
+import { calcRedispatchCost, redispatchCharge, isFirstSolve, canAffordRedispatch, SOLVE_REWARD } from '../economy.js';
 
 export const DIFFICULTY_COLORS = {
   'Easy': '#34d399',      // emerald-400
@@ -92,9 +93,9 @@ function reconnectingSwitchIds(network) {
 /**
  * Rebuild the PixiJS scene from new network data.
  *
- * @param {object} ctx  { world, overviewWorld, state, settings, minimapSize }
+ * @param {object} ctx  { world, overviewWorld, state, settings, minimapSize, redispatchScale }
  * @param {object} network
- * @param {object} callbacks  { onToggle, onNodeClick, onResetRedispatch, changeInjection }
+ * @param {object} callbacks  { onToggle, onNodeClick, onRedispatchSelect }
  */
 const ANIM_DURATION = 420; // ms
 
@@ -130,6 +131,7 @@ export function updateNetwork(ctx, network, callbacks) {
   // ── Build new scene objects ────────────────────────────────────
   const main = createNetwork(settings.mode, network, callbacks, false, {
     reconnecting: reconnectingSwitchIds(network),
+    pair: settings.pair,
   });
   const overview = createNetwork(settings.mode, network, {}, true);
 
@@ -142,6 +144,7 @@ export function updateNetwork(ctx, network, callbacks) {
   state.uiElements = main.uiElements;
   state.overloadedGfx = main.overloadedGfx;
   state.faultField = main.faultField;
+  ctx.redispatchScale?.update(network, settings);
 
   // ── Schedule entrance / exit animations ───────────────────────
   const now = Date.now();
@@ -253,8 +256,9 @@ export function updateNetwork(ctx, network, callbacks) {
 
   const costEl = document.getElementById('redispatchCost');
   if (network.redispatch?.cost && network.redispatch.cost !== 0 && settings.mode !== 'redispatch') {
+    const player = JSON.parse(sessionStorage.getItem('player'));
     costEl.style.display = 'block';
-    costEl.textContent = `(${network.redispatch.cost}€)`;
+    costEl.textContent = `(${redispatchCharge(player, network.redispatch.cost, window._dailyMode)}€)`;
   } else {
     costEl.style.display = 'none';
   }
@@ -326,15 +330,19 @@ function checkSolutionGuest(network, player) {
     return;
   }
 
-  let redispatchCost = 0;
-  for (const [nodeId, adj] of Object.entries(network.redispatch?.adjustments ?? {})) {
-    const node = network.nodes[nodeId];
-    if (!node) continue;
-    redispatchCost += adj > 0 ? adj * node.cost_increase : -adj * node.cost_decrease;
+  const redispatchCost = calcRedispatchCost(network.redispatch?.adjustments);
+  const dailyMode = !!window._dailyMode;
+  // Same rule as the server's settle_coins: redispatch is paid from existing coins only.
+  if (!canAffordRedispatch(player, redispatchCost, dailyMode)) {
+    hideSolvedUI();
+    return;
   }
   const stars = starsForRedispatchCost(redispatchCost);
+  const firstSolve = isFirstSolve(player, dailyMode);
+  const reward = firstSolve ? SOLVE_REWARD : 0;
+  player.money = (player.money ?? 100) + reward - redispatchCharge(player, redispatchCost, dailyMode);
 
-  if (window._dailyMode) {
+  if (dailyMode) {
     const today = new Date().toISOString().slice(0, 10);
     const prevStars = player.daily_solved_date === today ? (player.daily_stars || 0) : 0;
     const bestStars = Math.max(prevStars, stars);
@@ -351,18 +359,14 @@ function checkSolutionGuest(network, player) {
       daily_stars: player.daily_stars,
     });
 
+    document.getElementById('moneyAmount').textContent = player.money + '€';
     if (window._updateDailyBadge) window._updateDailyBadge(true);
     if (window._refreshScoreboard) window._refreshScoreboard();
-    triggerDailySolvedUI('', bestStars);
+    triggerDailySolvedUI(reward > 0 ? `+${reward}€` : '', bestStars);
     return;
   }
 
-  let reward = 0;
-  if (player.current_level >= player.unlocked_levels) {
-    player.unlocked_levels += 1;
-    reward = 50;
-  }
-  player.money = (player.money ?? 100) + reward - Math.round(redispatchCost);
+  if (firstSolve) player.unlocked_levels += 1;
 
   const levelStars = player.level_stars ?? {};
   const bestStars = Math.max(levelStars[network.level] || 0, stars);

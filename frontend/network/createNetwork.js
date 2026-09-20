@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, Circle, Rectangle, ColorMatrixFilter } from 'pixi.js';
+import { Container, Graphics, Text, Circle, ColorMatrixFilter } from 'pixi.js';
 import { config } from '../config.js';
 import { deadIslandNodeIds, faultSites } from './powerFlow.js';
 import { createFaultField } from './faultField.js';
@@ -18,9 +18,10 @@ export const SPLIT_SCALE = 0.8;
  *
  * @param {'switches'|'redispatch'} mode
  * @param {object} network
- * @param {object} callbacks  { onToggle, onNodeClick, onResetRedispatch, changeInjection }
+ * @param {object} callbacks  { onToggle, onNodeClick, onRedispatchSelect }
  * @param {boolean} overview  simplified rendering for the minimap
- * @param {object} view  { reconnecting: Set<string> } switch ids that would heal a split
+ * @param {object} view  { reconnecting: Set<string> } switch ids that would heal a split,
+ *   { pair: string[] } nodes currently selected on the redispatch scale
  * @returns {{ container, particles, uiElements, overloadedGfx, faultField }}
  *   - container:    add to world / overviewWorld
  *   - particles:    animate in ticker  { gfx, from, to, t, speed, color }
@@ -213,7 +214,7 @@ export function createNetwork(mode, network, callbacks = {}, overview = false, v
       gfx.cursor = 'pointer';
       gfx.on('pointertap', () => {
         if (mode === 'switches') callbacks.onNodeClick?.(node.id);
-        else if (mode === 'redispatch') callbacks.onResetRedispatch?.(node.id);
+        else if (mode === 'redispatch') callbacks.onRedispatchSelect?.(node.id);
       });
     }
     nodeLayer.addChild(gfx);
@@ -227,18 +228,15 @@ export function createNetwork(mode, network, callbacks = {}, overview = false, v
     uiLayer.addChild(injLabel);
     uiElements.push(injLabel);
 
-    // Redispatch mode: pill buttons + adjustment badge
+    // Redispatch mode: selection ring + net adjustment badge
     if (mode === 'redispatch') {
-      for (const dir of ['up', 'down']) {
-        const price = dir === 'up' ? node.cost_increase : node.cost_decrease;
-        const btn = makeRedispatchBtn(dir, price);
-        btn.x = node.x;
-        btn.y = node.y + (dir === 'up' ? -15 : 15);
-        btn.eventMode = 'static';
-        btn.cursor = 'pointer';
-        btn.on('pointertap', () => callbacks.changeInjection?.(node.id, dir));
-        uiLayer.addChild(btn);
-        uiElements.push(btn);
+      if (view.pair?.includes(id)) {
+        const ring = new Graphics();
+        ring.circle(0, 0, config.sizes.nodeRadius + 5)
+          .stroke({ width: 3, color: config.colors.redispatch });
+        ring.x = node.x;
+        ring.y = node.y;
+        nodeLayer.addChild(ring);
       }
 
       const adj = network.redispatch?.adjustments?.[id];
@@ -401,50 +399,6 @@ function makeSwitch(isB, reconnecting = false) {
   g._hoverScale = 1;
   g._hoverTarget = 1;
   return g;
-}
-
-function makeRedispatchBtn(dir, price) {
-  const c = new Container();
-  const w = 58, h = 26, r = 14;
-  const col = config.colors.redispatch;
-
-  const bg = new Graphics();
-  bg.roundRect(-w / 2, -h / 2, w, h, r)
-    .fill({ color: col, alpha: 0.70 })
-    .stroke({ width: 1.5, color: col });
-
-  // Direction sign (+/-) drawn in white
-  const sign = new Text({
-    text: dir === 'up' ? '+' : '−',
-    style: {
-      fill: '#ffffff',
-      fontSize: 18,
-      fontWeight: 'bold',
-      fontFamily: 'sans-serif',
-    },
-  });
-  sign.anchor.set(0.5);
-  sign.x = -14;
-
-  // Cost is floored at 0€ so it never shows alongside the direction sign as a
-  // second, confusing negative (some nodes have a negative cost_decrease —
-  // a rebate for reducing output — which the button intentionally hides).
-  const label = new Text({
-    text: Math.max(0, price) + '€',
-    style: {
-      fill: '#ffffff',
-      fontSize: 14,
-      fontWeight: 'bold',
-      fontFamily: 'sans-serif',
-      dropShadow: { color: '#000000', blur: 4, distance: 0, alpha: 0.6 },
-    },
-  });
-  label.anchor.set(0, 0.5);
-  label.x = -4;
-
-  c.addChild(bg, sign, label);
-  c.hitArea = new Rectangle(-w / 2, -h / 2, w, h);
-  return c;
 }
 
 // ── B-node ring factory (used by createNetwork + phantom animations) ─
