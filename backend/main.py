@@ -238,8 +238,12 @@ def check_solution(
     if network.level is None:
         raise HTTPException(status_code=400, detail="Network has no level set")
 
+    # Bind the level now: calculate_power_flow() rebinds `network` below, which
+    # would discard the narrowing this guard just established.
+    level = network.level
+
     # Verify the topology is a legal derivative of the original level
-    original = load_level(network.level)
+    original = load_level(level)
     submitted_reset = reset_all_switches(deepcopy(network))
     adjustments = network.redispatch.get("adjustments", {})
     original_nodes = {nid: (n.injection, n.x, n.y) for nid, n in original.nodes.items()}
@@ -283,10 +287,12 @@ def check_solution(
         charge = settle_coins(player, reward, redispatch_cost, first_solve)
         if first_solve:
             player.unlocked_levels += 1
+            reward = 50  # Reward for completing the level
+        player.money += reward - round(redispatch_cost)
 
         level_stars = player.get_level_stars()
-        stars = max(level_stars.get(network.level, 0), stars_for_redispatch_cost(redispatch_cost))
-        level_stars[network.level] = stars
+        stars = max(level_stars.get(level, 0), stars_for_redispatch_cost(redispatch_cost))
+        level_stars[level] = stars
         player.set_level_stars(level_stars)
 
         db.commit()
