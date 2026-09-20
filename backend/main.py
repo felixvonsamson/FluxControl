@@ -26,6 +26,7 @@ from .schemas import (
     TopologyChangeRequest,
     LoadLevelRequest,
     NetworkStateRequest,
+    SwitchCountRequest,
     SwitchNodeRequest,
     ResetSwitchesRequest,
     dict_to_network_state,
@@ -38,7 +39,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import APIRouter
 
 from .database import Base, engine, SessionLocal
-from .models import Player
+from .models import Player, LevelStats
+from .level_stats import record_level_switches
 from .auth import (
     hash_password,
     verify_password,
@@ -179,8 +181,9 @@ def delete_account(
     db: Session = Depends(get_db),
 ):
     # App Store 5.1.1(v): account-creating apps must let users delete their
-    # account from within the app. The Player row is self-contained (no
-    # related tables), so a single delete fully erases the account.
+    # account from within the app. Everything hanging off the Player (currently
+    # just LevelStats) must be deleted here too.
+    db.query(LevelStats).filter(LevelStats.player_id == player.id).delete()
     db.delete(player)
     db.commit()
     return {"status": "ok"}
@@ -261,6 +264,8 @@ def check_solution(
     # flows, so it can never be a solution. Never fall back to client flows.
     resolved = resolve_dead_islands(network)
     if resolved is None:
+        record_level_switches(db, player, level, data.switch_delta, solved=False)
+        db.commit()
         return rewardResponse(
             solved=False,
             player=player.package_data(),
@@ -295,7 +300,13 @@ def check_solution(
         level_stars[level] = stars
         player.set_level_stars(level_stars)
 
-        db.commit()
+    # A solve that used redispatch still progresses the player but does not
+    # close the difficulty tally: the level isn't solved by switching alone.
+    record_level_switches(
+        db, player, level, data.switch_delta,
+        solved=all_lines_within_capacity and not adjustments,
+    )
+    db.commit()
 
     return rewardResponse(
         solved=all_lines_within_capacity,
@@ -304,6 +315,19 @@ def check_solution(
         redispatch_cost=charge,
         stars=stars,
     )
+
+
+@router.post("/record_switches")
+def record_switches(
+    data: SwitchCountRequest,
+    player: Player = Depends(get_current_player),
+    db: Session = Depends(get_db),
+):
+    if not 1 <= data.level <= player.unlocked_levels:
+        raise HTTPException(status_code=403, detail="Level not unlocked")
+    record_level_switches(db, player, data.level, data.count, solved=False)
+    db.commit()
+    return {"status": "ok"}
 
 
 @router.post("/solve")
@@ -497,12 +521,17 @@ def privacy_policy():
         account. We never store your password in plain text.</li>
     <li><strong>Gameplay data</strong> — your current level, solved levels,
         coin balance, daily challenge history, and streak count. This data
-        exists solely to save your progress and display the leaderboard.</li>
+        exists to save your progress, display the leaderboard and improve
+        level difficulty.</li>
   </ul>
+
+  <p>To understand how hard each level is, we also record, per level, how many
+  switches you flipped before solving it. This is stored with your account,
+  used only to improve level design, and deleted with your account.</p>
 
   <p>We do <strong>not</strong> collect your name, email address, phone
   number, location, device identifiers, or any data for advertising or
-  analytics purposes. There are no third-party SDKs in the app.</p>
+  third-party analytics purposes. There are no third-party SDKs in the app.</p>
 
   <h2>How we use it</h2>
   <p>Your data is used only to run the game: authenticate you, restore your
