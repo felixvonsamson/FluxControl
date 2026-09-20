@@ -45,22 +45,23 @@ SOLVER_TIMEOUT_SECONDS = 10
 # Maximum retries when generate_network fails to produce a solvable level.
 MAX_GENERATION_RETRIES = 10
 
-# Range for randomly assigned redispatch costs on generated nodes (€/MW),
-# matching the spread used across the hand-built levels.
-COST_INCREASE_RANGE = (20, 100)
-COST_DECREASE_RANGE = (-20, 40)
+# Uniform redispatch prices (€/MW) and the coin reward for a first solve.
+# Keep in sync with frontend/economy.js.
+REDISPATCH_COST_INCREASE = 30
+REDISPATCH_COST_DECREASE = 10
+SOLVE_REWARD = 50
 
 
-def calculate_redispatch_cost(network: NetworkState) -> float:
-    """Total cost of a submitted solution's redispatch adjustments."""
+def calculate_redispatch_cost(network: NetworkState) -> int:
+    """Total cost of a submitted solution's redispatch adjustments, rounded once
+    to whole coins so player balances stay integers."""
     cost = 0.0
-    for node_id, adjustment in network.redispatch.get("adjustments", {}).items():
-        node = network.nodes[node_id]
+    for adjustment in network.redispatch.get("adjustments", {}).values():
         if adjustment > 0:
-            cost += adjustment * node.cost_increase
+            cost += adjustment * REDISPATCH_COST_INCREASE
         else:
-            cost += -adjustment * node.cost_decrease
-    return cost
+            cost += -adjustment * REDISPATCH_COST_DECREASE
+    return round(cost)
 
 
 def stars_for_redispatch_cost(cost: float) -> int:
@@ -214,8 +215,6 @@ def _generate_once(num_nodes: int, width: float, height: float):
             x=x,
             y=y,
             injection=raw[i],
-            cost_increase=random.randint(*COST_INCREASE_RANGE),
-            cost_decrease=random.randint(*COST_DECREASE_RANGE),
         )
 
     lines = {}

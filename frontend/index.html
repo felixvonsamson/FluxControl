@@ -32,10 +32,10 @@
   <!-- Top center: Level indicator -->
   <div id="LevelInfoPanel"
        class="fixed top-0 left-1/2 -translate-x-1/2 z-[1000]
-              px-5 py-2 rounded-b-2xl
+              px-6 py-2.5 rounded-b-2xl
               bg-gray-900/90 backdrop-blur-md
               border-x border-b border-white/[0.08]
-              text-white text-base font-semibold tracking-wide
+              text-white text-lg font-semibold tracking-wide
               shadow-xl shadow-black/50 select-none">
     Loading...
   </div>
@@ -66,9 +66,9 @@
       </div>
       <!-- Help -->
       <button id="helpBtn" aria-label="Tutorial"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl
+              class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl
                      bg-gray-900/90 backdrop-blur-md border border-white/[0.08]
-                     text-white text-sm font-semibold
+                     text-white text-base font-semibold
                      hover:bg-white/10 active:bg-white/20 transition-colors
                      shadow-lg shadow-black/50">
         Tutorial
@@ -93,11 +93,11 @@
       </button>
       <!-- Menu button -->
       <button id="menuBtn" aria-label="Menu"
-              class="relative flex items-center gap-2 px-3.5 py-2 rounded-xl
+              class="relative flex items-center gap-2 px-4 py-2.5 rounded-xl
                      bg-blue-600 hover:bg-blue-500 active:bg-blue-700
-                     text-white text-sm font-semibold
+                     text-white text-base font-semibold
                      shadow-lg shadow-black/50 transition-colors select-none">
-        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
         </svg>
         Menu
@@ -108,53 +108,53 @@
 
     <!-- Dropdown -->
     <div id="menuButtons" style="display:none;"
-         class="flex flex-col gap-1 min-w-[160px]">
+         class="flex flex-col gap-1 min-w-[200px]">
       <button id="dailyProblemBtn"
-              class="px-4 py-2.5 rounded-xl text-left flex items-center gap-2.5
+              class="px-5 py-3 rounded-xl text-left flex items-center gap-2.5
                      bg-gray-900/95 backdrop-blur-md border border-white/[0.08]
-                     text-white text-sm font-medium
+                     text-white text-base font-medium
                      hover:bg-white/10 active:bg-white/20 transition-colors
                      shadow-lg shadow-black/50">
-        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/>
         </svg>
         <span class="flex-1">Daily Problem</span>
         <span id="dailyNewPill" style="display:none;"
               class="text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-black leading-none">NEW</span>
-        <svg id="dailySolvedCheck" style="display:none;" class="w-4 h-4 text-emerald-400 shrink-0"
+        <svg id="dailySolvedCheck" style="display:none;" class="w-5 h-5 text-emerald-400 shrink-0"
              fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
         </svg>
       </button>
       <button id="levelSelection"
-              class="px-4 py-2.5 rounded-xl text-left flex items-center gap-2.5
+              class="px-5 py-3 rounded-xl text-left flex items-center gap-2.5
                      bg-gray-900/95 backdrop-blur-md border border-white/[0.08]
-                     text-white text-sm font-medium
+                     text-white text-base font-medium
                      hover:bg-white/10 active:bg-white/20 transition-colors
                      shadow-lg shadow-black/50">
-        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12"/>
         </svg>
         Campaign Mode
       </button>
       <button id="scoreboardBtn"
-              class="px-4 py-2.5 rounded-xl text-left flex items-center gap-2.5
+              class="px-5 py-3 rounded-xl text-left flex items-center gap-2.5
                      bg-gray-900/95 backdrop-blur-md border border-white/[0.08]
-                     text-white text-sm font-medium
+                     text-white text-base font-medium
                      hover:bg-white/10 active:bg-white/20 transition-colors
                      shadow-lg shadow-black/50">
-        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/>
         </svg>
         Leaderboard
       </button>
       <button id="authButton"
-              class="px-4 py-2.5 rounded-xl text-left flex items-center gap-2.5
+              class="px-5 py-3 rounded-xl text-left flex items-center gap-2.5
                      bg-gray-900/95 backdrop-blur-md border border-white/[0.08]
-                     text-white text-sm font-medium
+                     text-white text-base font-medium
                      hover:bg-white/10 active:bg-white/20 transition-colors
                      shadow-lg shadow-black/50">
-        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/>
         </svg>
         <span>Login</span>
@@ -194,21 +194,28 @@
                 bg-gray-900/90 backdrop-blur-md border border-white/[0.08]
                 shadow-lg shadow-black/50">
     </div>
+    <!-- Paired-redispatch scale (filled in by ui/redispatchScale.js) -->
+    <div id="redispatchScale" style="display:none;"
+         class="p-3 rounded-2xl bg-gray-900/95 backdrop-blur-md border border-white/[0.08]
+                shadow-lg shadow-black/50">
+    </div>
     <div class="flex gap-2">
       <button id="useRedispatch"
-              class="px-4 py-2 rounded-xl text-sm font-semibold
+              class="px-5 py-3 rounded-xl text-base font-semibold
                      bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white
                      shadow-lg shadow-black/50 transition-colors">
         Redispatch
       </button>
       <button id="validateRedispatch" style="display:none"
-              class="px-4 py-2 rounded-xl text-sm font-semibold
+              class="px-8 py-3 rounded-xl text-xl font-bold
                      bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white
+                     disabled:bg-gray-600 disabled:hover:bg-gray-600 disabled:text-gray-400
+                     disabled:cursor-not-allowed disabled:shadow-none
                      shadow-lg shadow-black/50 transition-colors">
         Confirm
       </button>
       <button id="cancelRedispatch" style="display:none"
-              class="px-4 py-2 rounded-xl text-sm font-semibold
+              class="px-5 py-3 rounded-xl text-base font-semibold
                      bg-red-600 hover:bg-red-500 active:bg-red-700 text-white
                      shadow-lg shadow-black/50 transition-colors">
         Cancel

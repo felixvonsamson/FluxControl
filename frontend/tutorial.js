@@ -3,16 +3,18 @@ import { config, themes } from './config.js';
 import { updateNetwork, toggleSwitch } from './network/updateNetwork.js';
 import { calculatePowerFlow } from './network/powerFlow.js';
 import { createNetwork } from './network/createNetwork.js';
+import { applyTransfer, nextPair } from './network/redispatch.js';
+import { initRedispatchScale } from './ui/redispatchScale.js';
 
 // ── Tutorial network ──────────────────────────────────────────────────
 // Line limits will be tuned later; for now all 50 (same as game default).
 const TUTORIAL_NETWORK_BASE = {
   nodes: {
-    '0': { id: '0', injection: 15, x: 200, y: 150, cost_increase: 50, cost_decrease: 25 },
-    '1': { id: '1', injection: 19, x: 400, y: 150, cost_increase: 50, cost_decrease: 25 },
-    '2': { id: '2', injection: -84, x: 100, y: 300, cost_increase: 50, cost_decrease: 25 },
-    '3': { id: '3', injection: -31, x: 300, y: 300, cost_increase: 50, cost_decrease: 25 },
-    '4': { id: '4', injection: 81, x: 500, y: 300, cost_increase: 50, cost_decrease: 25 },
+    '0': { id: '0', injection: 15, x: 200, y: 150 },
+    '1': { id: '1', injection: 19, x: 400, y: 150 },
+    '2': { id: '2', injection: -84, x: 100, y: 300 },
+    '3': { id: '3', injection: -31, x: 300, y: 300 },
+    '4': { id: '4', injection: 81, x: 500, y: 300 },
   },
   lines: {
     'L0-1': { id: 'L0-1', from_node: '0', to_node: '1', flow: 0, limit: 50 },
@@ -39,7 +41,7 @@ const STEPS = [
   { text: 'Here is another animation. Both lines are now connected to the bypass node, which acts as a completely separate node. This is called a <b>topological measure</b>.' },
   { text: 'To reset all switches of a node back to the main bus, <b>click on the node itself</b>. Try it.' },
   { text: "There is always a solution using only topological measures. However, if you can't find it, use <b>Redispatch</b>. Click the button on the bottom right to enter redispatch mode." },
-  { text: 'Now adjust the generation and consumption so that all lines are within their capacity and the power balance is zero.' },
+  { text: '<b>Select two nodes</b>, then drag one up or down to shift power around. Redispatch conserves the net power on the grid and it costs money.' },
   { text: 'Perfect! Click the <b>price tag button</b> to validate and pay for the redispatch.' },
   { text: "You're all set! Click <b>Start Playing</b> to tackle real levels.", final: true },
 ];
@@ -96,7 +98,7 @@ const CTRL = [
 let step = 0;
 const stepSnapshots = {};  // network JSON snapshots indexed by step, for Back navigation
 let app, world, ctx, callbacks;
-const settings = { mode: 'switches' };
+const settings = { mode: 'switches', pair: [] };
 let tutHighlightGfx = null;  // overlay for pulsing circles (on app.stage)
 let tutAnimType = null;      // 'bypass1' | 'bypass2' | null
 let tutAnimStartTime = 0;    // timestamp when current animation loop began
@@ -199,23 +201,23 @@ function renderStep() {
 
   const nextBtn = c.nextDisabled
     ? `<button disabled
-               class="px-4 py-2 rounded-xl text-sm font-semibold
+               class="px-5 py-2.5 rounded-xl text-base font-semibold
                       bg-gray-700 text-gray-500 cursor-not-allowed select-none">
          ${c.nextLabel ?? 'Next →'}
        </button>`
     : (!c.final
       ? `<button id="tutNext"
-                   class="px-4 py-2 rounded-xl text-sm font-semibold
+                   class="px-5 py-2.5 rounded-xl text-base font-semibold
                           bg-blue-600 hover:bg-blue-500 active:bg-blue-700
                           text-white transition-colors">Next →</button>`
       : `<button id="tutDone"
-                   class="px-4 py-2 rounded-xl text-sm font-semibold
+                   class="px-5 py-2.5 rounded-xl text-base font-semibold
                           bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700
                           text-white transition-colors">Start Playing →</button>`);
 
   const backBtn = step > 0
     ? `<button id="tutPrev"
-               class="px-4 py-2 rounded-xl text-sm font-semibold
+               class="px-5 py-2.5 rounded-xl text-base font-semibold
                       bg-gray-700 hover:bg-gray-600 active:bg-gray-800
                       text-white transition-colors">← Back</button>`
     : '';
@@ -226,10 +228,11 @@ function renderStep() {
     backBtn + nextBtn +
     `</div>`;
 
+
   document.getElementById('tutPrev')?.addEventListener('click', () => {
     const prev = step - 1;
     if (stepSnapshots[prev]) sessionStorage.setItem('network', stepSnapshots[prev]);
-    if (settings.mode === 'redispatch' && prev < 10) settings.mode = 'switches';
+    if (settings.mode === 'redispatch' && prev < 10) { settings.mode = 'switches'; settings.pair = []; }
     step = prev;
     updateAndRender();
   });
@@ -531,30 +534,19 @@ function updateAndRender() {
       renderStep();
     },
 
-    onResetRedispatch(nodeId) {
+    onRedispatchSelect(nodeId) {
       if (!getCtrl().adjustments) return;
-      let network = getNetwork();
-      const node = network.nodes[nodeId];
-      const adj = network.redispatch.adjustments[nodeId] || 0;
-      node.injection -= adj;
-      network.redispatch.cost -= adj * (adj > 0 ? node.cost_increase : -node.cost_decrease);
-      network.redispatch.unbalance -= adj;
-      delete network.redispatch.adjustments[nodeId];
-      syncRedispatchUI(network);
-      network = calculatePowerFlow(network);
-      updateNetwork(ctx, network, callbacks);
-      renderStep();
+      settings.pair = nextPair(settings.pair, nodeId);
+      updateNetwork(ctx, getNetwork(), callbacks);
+      renderStep(); // updateNetwork hides the tutorial hint panel
     },
+  };
 
-    changeInjection(nodeId, direction) {
+  ctx.redispatchScale = initRedispatchScale(document.getElementById('redispatchScale'), {
+    onTransfer(raisingId, loweringId, mw) {
       if (!getCtrl().adjustments) return;
       let network = getNetwork();
-      const delta = direction === 'up' ? 1 : -1;
-      const node = network.nodes[nodeId];
-      node.injection += delta;
-      network.redispatch.adjustments[nodeId] = (network.redispatch.adjustments[nodeId] || 0) + delta;
-      network.redispatch.cost = calcRedispatchCost(network);
-      network.redispatch.unbalance += delta;
+      applyTransfer(network, raisingId, loweringId, mw);
       syncRedispatchUI(network);
       network = calculatePowerFlow(network);
       updateNetwork(ctx, network, callbacks);
@@ -566,13 +558,20 @@ function updateAndRender() {
         renderStep();
       }
     },
-  };
+    onClear() {
+      settings.pair = [];
+      updateNetwork(ctx, getNetwork(), callbacks);
+      renderStep();
+    },
+    isFree: () => false,
+  });
 
   // ── Button wiring ────────────────────────────────────────────
   document.getElementById('useRedispatch').addEventListener('click', () => {
     if (!getCtrl().redispatch) return;
     sessionStorage.setItem('network_before_redispatch', sessionStorage.getItem('network'));
     settings.mode = 'redispatch';
+    settings.pair = [];
     // Auto-advance step 9 → 10
     if (step === 9) {
       stepSnapshots[step] = sessionStorage.getItem('network');
@@ -590,6 +589,7 @@ function updateAndRender() {
   document.getElementById('validateRedispatch').addEventListener('click', () => {
     if (!getCtrl().validate) return;
     settings.mode = 'switches';
+    settings.pair = [];
     updateNetwork(ctx, getNetwork(), callbacks);
     // Auto-advance step 11 → 12
     if (step === 11) {
@@ -687,15 +687,6 @@ function fitCamera(network) {
   world.scale.set(zoom);
   world.x = app.screen.width / 2 - ((minX + maxX) / 2) * zoom;
   world.y = app.screen.height / 2 - ((minY + effectiveMaxY) / 2) * zoom;
-}
-
-function calcRedispatchCost(network) {
-  let total = 0;
-  for (const [id, adj] of Object.entries(network.redispatch.adjustments)) {
-    const node = network.nodes[id];
-    total += adj > 0 ? adj * node.cost_increase : -adj * node.cost_decrease;
-  }
-  return total;
 }
 
 function syncRedispatchUI(network) {

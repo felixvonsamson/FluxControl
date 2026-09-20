@@ -19,6 +19,7 @@ from .network import (
     get_or_create_daily_network,
     calculate_redispatch_cost,
     stars_for_redispatch_cost,
+    SOLVE_REWARD,
 )
 from .schemas import (
     ProgressUpdateRequest,
@@ -189,6 +190,33 @@ def leaderboard(player: Player = Depends(get_current_player), db: Session = Depe
     players = db.query(Player).order_by(Player.daily_streak.desc(), Player.money.desc()).all()
     return [p.package_data() for p in players]
 
+
+def check_redispatch_adjustments(network) -> None:
+    """Reject redispatch that names unknown nodes or leaves the grid unbalanced.
+    The power flow silently absorbs any imbalance in the slack bus, so without
+    this a forged submission could "solve" a level with free, unbalanced power."""
+    adjustments = network.redispatch.get("adjustments", {})
+    if any(node_id not in network.nodes for node_id in adjustments):
+        raise HTTPException(status_code=400, detail="Redispatch references unknown node")
+    if abs(sum(adjustments.values())) > 1e-6:
+        raise HTTPException(status_code=400, detail="Redispatch is not balanced")
+
+
+def settle_coins(player: Player, reward: int, redispatch_cost: int, first_solve: bool) -> int:
+    """
+    Single place where a valid solve changes a player's balance. Redispatch is
+    only paid on the first solve (a re-solve of a completed level or of the
+    day's already-solved daily is free), and the redispatch can only be paid
+    from coins the player already has, not from the reward for this solve.
+    Returns the coins actually charged.
+    """
+    charge = redispatch_cost if first_solve else 0
+    if charge > player.money:
+        raise HTTPException(status_code=400, detail="Not enough coins for this redispatch")
+    player.money += reward - charge
+    return charge
+
+
 @router.post("/check_solution", response_model=rewardResponse)
 def check_solution(
     data: NetworkStateRequest,
@@ -227,6 +255,7 @@ def check_solution(
     submitted_lines = set(submitted_reset.lines.keys())
     if original_nodes != submitted_nodes or original_lines != submitted_lines:
         raise HTTPException(status_code=400, detail="Submitted network does not match original level")
+    check_redispatch_adjustments(network)
 
     # A main split (base buses on more than one island) has no well-defined
     # flows, so it can never be a solution. Never fall back to client flows.
@@ -248,10 +277,15 @@ def check_solution(
     redispatch_cost = calculate_redispatch_cost(network)
 
     reward = 0
+    charge = 0
     stars = None
-    # If the player completed a new level, unlock the next level
     if all_lines_within_capacity:
-        if player.unlocked_levels == player.current_level:
+        # First solve of the player's current level: unlock the next one
+        first_solve = player.unlocked_levels == player.current_level
+        if first_solve:
+            reward = SOLVE_REWARD
+        charge = settle_coins(player, reward, redispatch_cost, first_solve)
+        if first_solve:
             player.unlocked_levels += 1
             reward = 50  # Reward for completing the level
         player.money += reward - round(redispatch_cost)
@@ -267,7 +301,7 @@ def check_solution(
         solved=all_lines_within_capacity,
         player=player.package_data(),
         reward=reward,
-        redispatch_cost=redispatch_cost,
+        redispatch_cost=charge,
         stars=stars,
     )
 
@@ -367,6 +401,7 @@ def check_daily_solution(
     }
     if original_nodes != submitted_nodes or set(original.lines.keys()) != set(submitted_reset.lines.keys()):
         raise HTTPException(status_code=400, detail="Submitted network does not match today's daily problem")
+    check_redispatch_adjustments(network)
 
     resolved = resolve_dead_islands(network)
     if resolved is None:
@@ -382,15 +417,20 @@ def check_daily_solution(
 
     today = datetime.date.today().isoformat()
     reward = 0
-    redispatch_cost = 0.0
+    charge = 0
     stars = None
     if all_lines_ok:
         redispatch_cost = calculate_redispatch_cost(network)
-        prev_stars = player.daily_stars or 0 if player.daily_solved_date == today else 0
+        first_solve = player.daily_solved_date != today
+        if first_solve:
+            reward = SOLVE_REWARD
+        charge = settle_coins(player, reward, redispatch_cost, first_solve)
+
+        prev_stars = player.daily_stars or 0 if not first_solve else 0
         stars = max(prev_stars, stars_for_redispatch_cost(redispatch_cost))
         player.daily_stars = stars
 
-        if player.daily_solved_date != today:
+        if first_solve:
             yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
             if player.daily_solved_date == yesterday:
                 player.daily_streak = (player.daily_streak or 0) + 1
@@ -398,8 +438,6 @@ def check_daily_solution(
                 player.daily_streak = 1
             player.daily_solved_date = today
             player.daily_solved_count = (player.daily_solved_count or 0) + 1
-            reward = 50
-            player.money += reward
 
         db.commit()
 
@@ -407,7 +445,7 @@ def check_daily_solution(
         solved=all_lines_ok,
         player=player.package_data(),
         reward=reward,
-        redispatch_cost=redispatch_cost,
+        redispatch_cost=charge,
         stars=stars,
     )
 

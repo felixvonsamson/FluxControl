@@ -284,6 +284,26 @@ html[data-theme="light"] #redispatchUnbalance {
   border-color: rgba(220, 38, 38, 0.35);
 }
 
+html[data-theme="light"] #redispatchScale {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #374151;
+}
+html[data-theme="light"] #redispatchScale [data-pan],
+html[data-theme="light"] #redispatchScale [data-up] {
+  background: #f3f4f6;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1f2937;
+}
+html[data-theme="light"] #redispatchScale .text-gray-200,
+html[data-theme="light"] #redispatchScale .text-gray-300,
+html[data-theme="light"] #redispatchScale .text-gray-400,
+html[data-theme="light"] #redispatchScale .text-white {
+  color: #4b5563;
+}
+html[data-theme="light"] #redispatchScale .text-amber-300 { color: #b45309; }
+html[data-theme="light"] #redispatchScale .text-emerald-400 { color: #059669; }
+
 html[data-theme="light"] #redispatchCost {
   background: rgba(255, 255, 255, 0.92);
   color: #6b7280;
