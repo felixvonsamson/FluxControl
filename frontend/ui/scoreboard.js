@@ -69,7 +69,7 @@ async function fetchAndRender() {
     const res = await fetch('/api/leaderboard', {
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${sessionStorage.getItem('access_token')}`,
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
       },
     });
     if (!res.ok) throw new Error(res.status);

@@ -18,13 +18,13 @@ export function clearGuestProgress() {
 }
 
 export function isGuest() {
-  return !sessionStorage.getItem('access_token') && !!getGuestProgress();
+  return !localStorage.getItem('access_token') && !!getGuestProgress();
 }
 
 // ── Auth helpers ────────────────────────────────────────────────────
 
 function getToken() {
-  return sessionStorage.getItem('access_token');
+  return localStorage.getItem('access_token');
 }
 
 export function authHeaders() {
@@ -62,7 +62,8 @@ export async function ensureLoggedIn() {
 
   const res = await fetch('/api/me', { headers: authHeaders() });
   if (!res.ok) {
-    sessionStorage.removeItem('access_token');
+    // Only an actual 401 means the token is dead; a 5xx shouldn't log the user out.
+    if (res.status === 401) localStorage.removeItem('access_token');
     window.location.href = '/login.html';
     return false;
   }
@@ -93,7 +94,7 @@ function updateHUD(player, guest) {
 }
 
 function logout() {
-  sessionStorage.removeItem('access_token');
+  localStorage.removeItem('access_token');
   sessionStorage.removeItem('player');
   window.location.href = '/login.html';
 }

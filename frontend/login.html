@@ -201,7 +201,7 @@
         }
 
         const data = await res.json();
-        sessionStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('access_token', data.access_token);
 
         // ── Migrate guest progress if ahead of account ──────────
         const guestRaw = localStorage.getItem('guest_progress');
@@ -270,7 +270,7 @@
     });
 
     // If already has guest progress, skip the login page entirely
-    if (!sessionStorage.getItem('access_token') && localStorage.getItem('guest_progress')) {
+    if (!localStorage.getItem('access_token') && localStorage.getItem('guest_progress')) {
       // They have guest progress but are on the login page — let them stay
       // (they may want to sign in to save their progress)
     }
