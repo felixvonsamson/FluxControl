@@ -292,8 +292,6 @@ def check_solution(
         charge = settle_coins(player, reward, redispatch_cost, first_solve)
         if first_solve:
             player.unlocked_levels += 1
-            reward = 50  # Reward for completing the level
-        player.money += reward - round(redispatch_cost)
 
         level_stars = player.get_level_stars()
         stars = max(level_stars.get(level, 0), stars_for_redispatch_cost(redispatch_cost))
